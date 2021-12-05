@@ -1,0 +1,6 @@
+/src/main/resources/application.properties
+/target/
+/.idea/
+/*.log
+/tokens/
+/src/main/resources/credentials.json

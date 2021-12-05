@@ -1,0 +1,12 @@
+
+# Shopware
+sync.shopware.url=https://<INSERT YOUR SHOPWARE-DOMAIN>/api/
+sync.shopware.client-id=<INSERT YOUR SHOPWARE CLIENT ID>
+sync.shopware.client-secret=<INSERT YOUR SHOPWARE CLIENT SECRET>
+sync.shopware.token-uri=https://<INSERT YOUR SHOPWARE-DOMAIN>/api/oauth/token
+
+# Shopware tags to Google drive sheet configuration
+sync.shopware.tags={ \
+  'MyProductTag_1': '<Insert your Google Drive Sheet ID for MyProductTag_1>', \
+  'MyProductTag_2': '<Insert your Google Drive Sheet ID for MyProductTag_2>' \
+}
