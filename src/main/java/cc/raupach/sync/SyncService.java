@@ -17,29 +17,29 @@ import java.util.Map;
 public class SyncService {
 
 
-    @Autowired
-    private ShopwareService shopwareService;
+  @Autowired
+  private ShopwareService shopwareService;
 
-    @Autowired
-    private GoogleService googleService;
+  @Autowired
+  private GoogleService googleService;
 
-    public void run() {
+  public void run() {
 
-        Map<String, Collection<GoogleFeedDto>> tags = shopwareService.getAllTags()
-                .flatMap(tag -> shopwareService.getProductsForTagId(tag))
-                .log()
-                .collectMultimap(GoogleFeedDto::getTagName, v -> v)
-                .block();
+    Map<String, Collection<GoogleFeedDto>> tags = shopwareService.getAllTags()
+      .flatMap(tag -> shopwareService.getProductsForTagId(tag))
+      .log()
+      .collectMultimap(GoogleFeedDto::getTagName, v -> v)
+      .block();
 
-        tags.keySet().forEach(tag -> {
+    tags.keySet().forEach(tag -> {
 
-            try {
-                googleService.writeSheet (tag, tags.get(tag));
-            } catch (IOException|URISyntaxException e) {
-               throw new RuntimeException(e);
-            }
-        });
+      try {
+        googleService.writeSheet(tag, tags.get(tag));
+      } catch (IOException | URISyntaxException e) {
+        throw new RuntimeException(e);
+      }
+    });
 
-    }
+  }
 
 }

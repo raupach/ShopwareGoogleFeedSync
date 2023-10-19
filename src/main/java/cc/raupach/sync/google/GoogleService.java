@@ -35,110 +35,112 @@ import java.util.*;
 @Service
 @Slf4j
 public class GoogleService {
-    private static final String APPLICATION_NAME = "Shopware Google Feed Sync";
-    private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
-    private static final String TOKENS_DIRECTORY_PATH = "tokens";
+  private static final String APPLICATION_NAME = "Shopware Google Feed Sync";
+  private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
+  private static final String TOKENS_DIRECTORY_PATH = "tokens";
 
-    /**
-     * Global instance of the scopes required by this quickstart.
-     * If modifying these scopes, delete your previously saved tokens/ folder.
-     */
-    private static final List<String> SCOPES = Collections.singletonList(SheetsScopes.SPREADSHEETS);
-    private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
+  /**
+   * Global instance of the scopes required by this quickstart.
+   * If modifying these scopes, delete your previously saved tokens/ folder.
+   */
+  private static final List<String> SCOPES = Collections.singletonList(SheetsScopes.SPREADSHEETS);
+  private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
 
-    private Sheets sheetsService;
+  private Sheets sheetsService;
 
-    @Autowired
-    private ShopwareSyncProperties shopwareSyncProperties;
+  @Autowired
+  private ShopwareSyncProperties shopwareSyncProperties;
 
-    @PostConstruct
-    public void setup() throws GeneralSecurityException, IOException {
-        NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-        sheetsService = new Sheets.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
-                .setApplicationName(APPLICATION_NAME)
-                .build();
+  @PostConstruct
+  public void setup() throws GeneralSecurityException, IOException {
+    NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+    sheetsService = new Sheets.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
+      .setApplicationName(APPLICATION_NAME)
+      .build();
+  }
+
+
+  /**
+   * Creates an authorized Credential object.
+   *
+   * @param HTTP_TRANSPORT The network HTTP Transport.
+   * @return An authorized Credential object.
+   * @throws IOException If the credentials.json file cannot be found.
+   */
+  private static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
+    // Load client secrets.
+    InputStream in = GoogleService.class.getResourceAsStream(CREDENTIALS_FILE_PATH);
+    if (in == null) {
+      throw new FileNotFoundException("Resource not found: " + CREDENTIALS_FILE_PATH);
     }
+    GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
+
+    // Build flow and trigger user authorization request.
+    GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
+      HTTP_TRANSPORT, JSON_FACTORY, clientSecrets, SCOPES)
+      .setDataStoreFactory(new FileDataStoreFactory(new java.io.File(TOKENS_DIRECTORY_PATH)))
+      .setAccessType("offline")
+      .build();
+    LocalServerReceiver receiver = new LocalServerReceiver.Builder().setPort(8888).build();
+    return new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
+  }
 
 
-    /**
-     * Creates an authorized Credential object.
-     * @param HTTP_TRANSPORT The network HTTP Transport.
-     * @return An authorized Credential object.
-     * @throws IOException If the credentials.json file cannot be found.
-     */
-    private static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
-        // Load client secrets.
-        InputStream in = GoogleService.class.getResourceAsStream(CREDENTIALS_FILE_PATH);
-        if (in == null) {
-            throw new FileNotFoundException("Resource not found: " + CREDENTIALS_FILE_PATH);
-        }
-        GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
+  public void writeSheet(String name, Collection<GoogleFeedDto> products) throws IOException, URISyntaxException {
 
-        // Build flow and trigger user authorization request.
-        GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
-                HTTP_TRANSPORT, JSON_FACTORY, clientSecrets, SCOPES)
-                .setDataStoreFactory(new FileDataStoreFactory(new java.io.File(TOKENS_DIRECTORY_PATH)))
-                .setAccessType("offline")
-                .build();
-        LocalServerReceiver receiver = new LocalServerReceiver.Builder().setPort(8888).build();
-        return new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
+    String spreadSheetId = shopwareSyncProperties.getTagsForFeeds().get(name);
+
+    clearValues(spreadSheetId);
+    writeHeader(spreadSheetId);
+
+    Iterator<GoogleFeedDto> it = products.iterator();
+    int row = 2;
+    while (it.hasNext()) {
+      writeProduct(row++, it.next(), spreadSheetId);
     }
+  }
 
+  private void writeProduct(int r, GoogleFeedDto product, String spreadSheetId) throws IOException, URISyntaxException {
 
-    public  void writeSheet(String name, Collection<GoogleFeedDto> products) throws IOException, URISyntaxException {
+    URI uri = new URI(product.getMediaLink());
+    String landingPage = uri.getScheme() + "://" + uri.getHost() + "/" + product.getUrl();
 
-        String spreadSheetId = shopwareSyncProperties.getTagsForFeeds().get(name);
+    ValueRange body = new ValueRange().setValues(List.of(
+      Arrays.asList(
+        product.getProductNumber() == null ? "" : product.getProductNumber(),
+        product.getName() == null ? "" : product.getName(),
+        product.getDescription() == null ? "" : product.getDescription(),
+        landingPage,
+        "new",
+        product.getPrice() + " " + product.getCurrency(),
+        "in_stock",
+        product.getMediaLink() == null ? "" : product.getMediaLink(),
+        "",
+        "",
+        "When too perfect lieber Gott böse",
+        "",
+        "AT:::3.49 EUR,DE:::3.49 EUR",
+        "Nein")));
 
-        clearValues(spreadSheetId);
-        writeHeader(spreadSheetId);
+    sheetsService.spreadsheets().values()
+      .update(spreadSheetId, "A" + r, body)
+      .setValueInputOption("RAW")
+      .execute();
+  }
 
-        Iterator<GoogleFeedDto> it = products.iterator();
-        int row = 2;
-        while (it.hasNext()) {
-            writeProduct(row++, it.next(), spreadSheetId);
-        }
-    }
+  private void clearValues(String spreadSheetId) throws IOException {
+    ClearValuesRequest clearValuesRequest = new ClearValuesRequest();
+    sheetsService.spreadsheets().values().clear(spreadSheetId, "Sheet1", clearValuesRequest);
+  }
 
-    private void writeProduct(int r, GoogleFeedDto product, String spreadSheetId) throws IOException, URISyntaxException {
+  private void writeHeader(String spreadSheetId) throws IOException {
+    ValueRange body = new ValueRange().setValues(List.of(
+      Arrays.asList("ID", "Titel", "Beschreibung", "Produkt Url", "Zustand", "Preis", "Verfügbarkeit", "Bild Link", "gtin", "mpn", "Marke", "Google Produktkategorie", "Versand", "Kennzeichnung existiert")));
 
-        URI uri = new URI(product.getMediaLink());
-        String landingPage = uri.getScheme()+"://" + uri.getHost()+"/" + product.getUrl();
-
-        ValueRange body = new ValueRange().setValues(List.of(
-                Arrays.asList(
-                        product.getProductNumber()==null?"":product.getProductNumber(),
-                        product.getName()==null?"":product.getName(),
-                        product.getDescription()==null?"":product.getDescription(),
-                        landingPage,
-                        "new",
-                        product.getPrice()+" "+product.getCurrency(),
-                        "in_stock",
-                        product.getMediaLink()==null?"":product.getMediaLink(),
-                        "",
-                        "",
-                        "When too perfect lieber Gott böse",
-                        "",
-                        "AT:::0 EUR")));
-
-        sheetsService.spreadsheets().values()
-                .update(spreadSheetId, "A"+r, body)
-                .setValueInputOption("RAW")
-                .execute();
-    }
-
-    private void clearValues(String spreadSheetId) throws IOException {
-        ClearValuesRequest clearValuesRequest = new ClearValuesRequest();
-        sheetsService.spreadsheets().values().clear(spreadSheetId, "Sheet1", clearValuesRequest);
-    }
-
-    private void writeHeader(String spreadSheetId) throws IOException {
-        ValueRange body = new ValueRange().setValues(List.of(
-                Arrays.asList("ID", "Titel", "Beschreibung", "Produkt Url", "Zustand", "Preis", "Verfügbarkeit", "Bild Link", "gtin", "mpn", "Marke", "Google Produktkategorie", "Versand")));
-
-        sheetsService.spreadsheets().values()
-                .update(spreadSheetId, "A1", body)
-                .setValueInputOption("RAW")
-                .execute();
-    }
+    sheetsService.spreadsheets().values()
+      .update(spreadSheetId, "A1", body)
+      .setValueInputOption("RAW")
+      .execute();
+  }
 
 }

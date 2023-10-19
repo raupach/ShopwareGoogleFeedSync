@@ -14,10 +14,10 @@ import java.util.Map;
 @PropertySource("classpath:application.properties")
 public class ShopwareSyncProperties {
 
-    @Value("${sync.shopware.url}")
-    private String url;
+  @Value("${sync.shopware.url}")
+  private String url;
 
-    @Value("#{${sync.shopware.tags}}")
-    private Map<String,String> tagsForFeeds;
+  @Value("#{${sync.shopware.tags}}")
+  private Map<String, String> tagsForFeeds;
 
 }

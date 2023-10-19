@@ -16,42 +16,42 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Configuration
 public class WebClientConfig {
 
-    @Value("${sync.shopware.token-uri}")
-    private String tokenUri;
+  @Value("${sync.shopware.token-uri}")
+  private String tokenUri;
 
-    @Value("${sync.shopware.client-id}")
-    private String clientId;
+  @Value("${sync.shopware.client-id}")
+  private String clientId;
 
-    @Value("${sync.shopware.client-secret}")
-    private String clientSecret;
+  @Value("${sync.shopware.client-secret}")
+  private String clientSecret;
 
-    @Bean
-    ReactiveClientRegistrationRepository clientRegistrations() {
+  @Bean
+  ReactiveClientRegistrationRepository clientRegistrations() {
 
-        ClientRegistration registration = ClientRegistration
-                .withRegistrationId("sw")
-                .tokenUri(tokenUri)
-                .clientId(clientId)
-                .clientSecret(clientSecret)
-                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-                .build();
-        return new InMemoryReactiveClientRegistrationRepository(registration);
-    }
+    ClientRegistration registration = ClientRegistration
+      .withRegistrationId("sw")
+      .tokenUri(tokenUri)
+      .clientId(clientId)
+      .clientSecret(clientSecret)
+      .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+      .build();
+    return new InMemoryReactiveClientRegistrationRepository(registration);
+  }
 
-    @Bean(name = "shopware")
-    WebClient webClient(ReactiveClientRegistrationRepository clientRegistrations) {
-        InMemoryReactiveOAuth2AuthorizedClientService clientService = new InMemoryReactiveOAuth2AuthorizedClientService(clientRegistrations);
-        AuthorizedClientServiceReactiveOAuth2AuthorizedClientManager authorizedClientManager = new AuthorizedClientServiceReactiveOAuth2AuthorizedClientManager(clientRegistrations, clientService);
-        ServerOAuth2AuthorizedClientExchangeFilterFunction oauth = new ServerOAuth2AuthorizedClientExchangeFilterFunction(authorizedClientManager);
-        oauth.setDefaultClientRegistrationId("sw");
+  @Bean(name = "shopware")
+  WebClient webClient(ReactiveClientRegistrationRepository clientRegistrations) {
+    InMemoryReactiveOAuth2AuthorizedClientService clientService = new InMemoryReactiveOAuth2AuthorizedClientService(clientRegistrations);
+    AuthorizedClientServiceReactiveOAuth2AuthorizedClientManager authorizedClientManager = new AuthorizedClientServiceReactiveOAuth2AuthorizedClientManager(clientRegistrations, clientService);
+    ServerOAuth2AuthorizedClientExchangeFilterFunction oauth = new ServerOAuth2AuthorizedClientExchangeFilterFunction(authorizedClientManager);
+    oauth.setDefaultClientRegistrationId("sw");
 
-        return WebClient.builder()
-          .filter(oauth)
-          .exchangeStrategies(ExchangeStrategies.builder()
-            .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(-1))
-            .build())
-          .build();
-    }
+    return WebClient.builder()
+      .filter(oauth)
+      .exchangeStrategies(ExchangeStrategies.builder()
+        .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(-1))
+        .build())
+      .build();
+  }
 
 
 }
